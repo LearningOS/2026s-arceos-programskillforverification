@@ -165,6 +165,52 @@ impl VfsNodeOps for DirNode {
         }
     }
 
+    fn rename(&self, src_path: &str, dst_path: &str) -> VfsResult {
+        let (src_name, src_rest) = split_path(src_path);
+
+        if let Some(src_rest) = src_rest {
+            match src_name {
+                "" | "." => self.rename(src_rest, dst_path),
+                ".." => self
+                    .parent()
+                    .ok_or(VfsError::NotFound)?
+                    .rename(src_rest, dst_path),
+                _ => {
+                    let subdir = self
+                        .children
+                        .read()
+                        .get(src_name)
+                        .ok_or(VfsError::NotFound)?
+                        .clone();
+                    subdir.rename(src_rest, dst_path)
+                }
+            }
+        } else if src_name.is_empty() || src_name == "." || src_name == ".." {
+            Err(VfsError::InvalidInput)
+        } else {
+            // 取 dst_path 的最后一段作为新名字
+            let dst_name = dst_path
+                .trim_end_matches('/')
+                .rsplit('/')
+                .next()
+                .unwrap_or("");
+            if dst_name.is_empty() || dst_name == "." || dst_name == ".." {
+                return Err(VfsError::InvalidInput);
+            }
+
+            let mut children = self.children.write();
+            if !children.contains_key(src_name) {
+                return Err(VfsError::NotFound);
+            }
+            if src_name != dst_name && children.contains_key(dst_name) {
+                return Err(VfsError::AlreadyExists);
+            }
+            let node = children.remove(src_name).unwrap();
+            children.insert(dst_name.into(), node);
+            Ok(())
+        }
+    }
+
     axfs_vfs::impl_vfs_dir_default! {}
 }
 
