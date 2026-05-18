@@ -19,6 +19,7 @@ docker:
 	else \
 		echo "🚀 no existing container is found: ${CONTAINER_NAME}, start creating new container..."; \
 		docker run --network host -it -d \
+			--privileged \
 			--name ${CONTAINER_NAME} \
 			-v ${CURDIR}:/mnt \
 			-w /mnt \
